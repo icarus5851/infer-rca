@@ -1,9 +1,10 @@
-from setuptools import setup
+from setuptools import setup, find_packages 
 
 setup(
     name='infer-cli',
     version='1.0.0',
-    py_modules=['main', 'engine', 'log_parser', 'code_extractor'], 
+    py_modules=['main'], 
+    packages=['modules'], 
     install_requires=[
         'google-genai',
         'langchain-chroma',
@@ -13,7 +14,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'infer=main:main', 
+            'infer=main:main',
         ],
     },
 )

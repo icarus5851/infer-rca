@@ -5,9 +5,9 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.markdown import Markdown
 
-from log_parser import parse_logs
-from code_extractor import extract_location, get_code_context
-from engine import analyze_with_ai
+from modules.log_parser import parse_logs
+from modules.code_extractor import extract_location, get_code_context
+from modules.engine import analyze_with_ai
 
 console = Console()
 

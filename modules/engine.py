@@ -5,7 +5,8 @@ from google import genai
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(MODULE_DIR)
 
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 

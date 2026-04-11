@@ -1,6 +1,6 @@
 # Infer
 
-![Infer CLI Demo](demo.gif)
+![Infer CLI Demo](demo/demo.gif)
 
 **Infer** is an AI-powered, globally installed CLI tool that acts as a local debugging assistant. It parses messy server logs, dynamically extracts the exact Python code context where the crash occurred, and generates root cause analyses and fixes using Google's Gemini 2.5 Flash model. 
 
