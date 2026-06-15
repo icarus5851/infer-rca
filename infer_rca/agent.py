@@ -1,69 +1,73 @@
-import uvicorn
-import requests
-from fastapi import FastAPI, Request
-from engine import analyze_crash
+import os
+import time
+import re
+from dotenv import load_dotenv
+from groq import Groq
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_chroma import Chroma
 
-app = FastAPI(title="Infer RCA Agent")
+load_dotenv()
 
-SPLUNK_HEC_TOKEN = "your-token-here" 
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-SPLUNK_HEC_URL = "https://localhost:8088/services/collector/event"
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/gemini-embedding-001",
+    google_api_key=os.getenv("GEMINI_API_KEY")
+)
 
-def forward_to_splunk(log_data):
-    """Sends the intercepted log to the local Splunk database."""
-    headers = {
-        "Authorization": f"Splunk {SPLUNK_HEC_TOKEN}",
-        "Content-Type": "application/json"
-    }
+vector_db = Chroma(
+    collection_name="infer_memory",
+    embedding_function=embeddings,
+    persist_directory="./chroma_db"
+)
+
+def sanitize_traceback(text):
+    """
+    Removes volatile memory addresses (e.g., 0x0001FA) from the traceback.
+    This ensures ChromaDB can match the exact same error across different runs.
+    """
+    return re.sub(r'0x[0-9a-fA-F]+', '0x...', text)
+
+def analyze_crash(traceback_text, crashed_code):
+    print("   -> [AI ENGINE] Searching ChromaDB memory...")
     
-    splunk_payload = {
-        "event": log_data
-    }
+    clean_traceback = sanitize_traceback(traceback_text)
     
-    try:
-        response = requests.post(
-            SPLUNK_HEC_URL, 
-            headers=headers, 
-            json=splunk_payload, 
-            verify=False,
-            timeout=3
-        )
-        
-        if response.status_code == 200:
-            print("✅ [SPLUNK] Log successfully vaulted!")
-        else:
-            print(f"❌ [SPLUNK REJECTED] Code: {response.status_code} - {response.text}")
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ [SPLUNK CONNECTION ERROR] Could not reach {SPLUNK_HEC_URL}")
-        print("   Did you enable HEC globally in Splunk settings?")
+    results = vector_db.similarity_search_with_score(clean_traceback, k=1)
+    
+    if results and results[0][1] < 0.3:
+        print("   -> [AI ENGINE] Exact match found in local memory!")
+        return True, results[0][0].metadata['root_cause']
 
-@app.post("/ingest")
-async def receive_log(request: Request):
-    payload = await request.json()
+    print("   -> [AI ENGINE] Unseen error. Querying Groq (Llama-3-70B)...")
     
-    trace_id = payload.get("trace_id", "UNKNOWN")
-    error_type = payload.get("error_type", "UNKNOWN")
+    prompt = f"""
+    You are an expert backend systems engineer diagnosing a server crash.
     
-    print(f"\n📥 [INFER AGENT] Received Crash Report: {trace_id}")
-    print(f"   -> Error: {error_type}")
-    print("   -> Forwarding to Splunk vault...")
+    Here is the telemetry data intercepted from the application:
+    {traceback_text}
+    
+    Here is the ENTIRE source code for the primary file where the crash occurred:
+    {crashed_code}
+    
+    INSTRUCTIONS:
+    1. Read the "Splunk Historical Context" to understand if this is a recurring systemic issue or a one-off anomaly.
+    2. Analyze the traceback and source code to identify the exact line of failure.
+    3. Provide a brief Root Cause Analysis.
+    4. Provide exactly one Markdown code block with the corrected code. Keep it concise.
+    """
+    
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    
+    analysis = response.choices[0].message.content
 
-    forward_to_splunk(payload)
-    traceback_text = payload.get("traceback", "")
-    crashed_code = payload.get("crashed_code", "") 
+    vector_db.add_texts(
+        texts=[clean_traceback],
+        metadatas=[{"root_cause": analysis}],
+        ids=[str(time.time())]
+    )
     
-    if traceback_text:
-        from_memory, analysis = analyze_crash(traceback_text, crashed_code)
-        print("\n================== AI SOLUTION ==================")
-        print(analysis)
-        print("=================================================\n")
-    
-    return {"status": "received", "trace_id": trace_id}
-
-def start_agent():
-    print(" Starting Infer Local Agent on http://localhost:5050")
-    uvicorn.run(app, host="0.0.0.0", port=5050)
-
-if __name__ == "__main__":
-    start_agent()
+    return False, analysis

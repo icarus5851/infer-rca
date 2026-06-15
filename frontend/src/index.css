@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #020617; /* Tailwind slate-950 */
+  color: #f8fafc; /* Tailwind slate-50 */
+}
+
+/* Override React Flow's default light mode controls */
+.react-flow__controls-button {
+  background-color: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
+  fill: #cbd5e1 !important;
+}
+.react-flow__controls-button:hover {
+  background-color: #334155 !important;
+}
