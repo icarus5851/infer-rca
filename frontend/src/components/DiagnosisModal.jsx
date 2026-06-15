@@ -1,8 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { X, Cpu, Database, Activity, FileSearch } from 'lucide-react';
+import { X, Cpu, Database, Activity, FileSearch, Copy, Check } from 'lucide-react';
+
+const CodeBlock = ({ language, value }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="relative group mb-6">
+      <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#222222] hover:bg-[#333333] text-gray-300 rounded-md border border-[#444444] text-xs font-medium transition-all shadow-sm"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        children={value}
+        style={vscDarkPlus}
+        language={language}
+        PreTag="div"
+        className="rounded-lg border border-[#333333] !bg-[#111111] !m-0 shadow-inner"
+      />
+    </div>
+  );
+};
 
 export default function DiagnosisModal({ isOpen, onClose, traceId, loading, result }) {
   if (!isOpen) return null;
@@ -78,16 +109,10 @@ export default function DiagnosisModal({ isOpen, onClose, traceId, loading, resu
                   <ReactMarkdown
                     components={{
                       code({node, inline, className, children, ...props}) {
-                        const match = /language-(\w+)/.exec(className || '')
+                        const match = /language-(\w+)/.exec(className || '');
+                        const codeString = String(children).replace(/\n$/, '');
                         return !inline && match ? (
-                          <SyntaxHighlighter
-                            {...props}
-                            children={String(children).replace(/\n$/, '')}
-                            style={vscDarkPlus}
-                            language={match[1]}
-                            PreTag="div"
-                            className="rounded-lg border border-[#333333] !bg-[#111111] !m-0 !mb-6 shadow-inner"
-                          />
+                          <CodeBlock language={match[1]} value={codeString} />
                         ) : (
                           <code {...props} className="bg-[#222222] px-1.5 py-0.5 rounded text-blue-300 font-mono text-sm border border-[#333333]">
                             {children}
